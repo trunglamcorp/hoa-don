@@ -63,7 +63,7 @@ a{text-decoration:none}
 
 <div class="tabs" id="dashboardTabs">
   <a class="tab" data-tab="invoice" href="#">Hóa đơn</a>
-  <a class="tab" data-tab="lookup" href="https://linkfinn.github.io/tra-cuu/tra-cuu-hoa-don.html">
+  <a class="tab" data-tab="lookup" href="https://trunglamcorp.github.io/hoa-don/tra-cuu-hoa-don.html">
      Tra cứu XML
   </a>
 </div>
@@ -97,26 +97,16 @@ a{text-decoration:none}
    CONFIG CSV
 ======================= */
 const CSV_MAP = {
-  dvft: {
-    label: 'Đầu vào Finn',
-    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1180743955&single=true&output=csv',
+  dvvt: {
+    label: 'Đầu vào Trung Lâm',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vShIBqhKtuKMp47PT2MZ-1GCzqrKuZg2KK3iUbBAMJtGoKidkcqCwxkRaosVHfzTfBFNuKAMAjARq9Q/pub?gid=1178854260&single=true&output=csv',
     group: 'DV'
   },
-  dvfm: {
-    label: 'Đầu vào Finn Xưởng',
-    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1178854260&single=true&output=csv',
-    group: 'DV'
-  },
-  drft: {
-    label: 'Đầu ra Finn',
-    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=147272766&single=true&output=csv',
+  drvt: {
+    label: 'Đầu ra Trung Lâm',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vShIBqhKtuKMp47PT2MZ-1GCzqrKuZg2KK3iUbBAMJtGoKidkcqCwxkRaosVHfzTfBFNuKAMAjARq9Q/pub?gid=1704976963&single=true&output=csv',
     group: 'DR'
   },
-  drfm: {
-    label: 'Đầu ra Finn Xưởng',
-    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1704976963&single=true&output=csv',
-    group: 'DR'
-  }
 };
 
 /* =======================
@@ -251,7 +241,7 @@ const year=document.getElementById('year');
 /* === INIT YEAR SELECT (AUTO)=== */
 (function initYearSelect(){
   const currentYear = new Date().getFullYear();
-  const startYear = 2023; // có thể đổi nếu muốn
+  const startYear = 2022; // có thể đổi nếu muốn
 
   year.innerHTML = `<option value="all">Chọn năm</option>`;
 
