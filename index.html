@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+body{
+  font-family: Tahoma, Arial, sans-serif;
+  font-size:14px;
+  margin:10px;
+  line-height:1.1;
+  color:#111;
+}
+@media print{
+  body{
+    font-family: "Times New Roman", serif;
+    font-size:13pt;
+  }
+}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #999;padding:6px}
+th{text-align:center;background:#f0f0f0}
+td.number,th.number{text-align:right}
+tr.nodata{background:#f8ebf7}
+tbody tr:hover{background:#defaf9}
+tfoot{display:none;} /* Ẩn khi chưa load dữ liệu, hiện lại trong render*/
+.controls{margin-bottom:10px;display:flex;gap:10px;align-items:center}
+a{text-decoration:none}
+
+/* ===== DASHBOARD TABS ===== */
+.tabs{
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+}
+.tab{
+  padding:8px 16px;
+  background:#e3f2fd;
+  border-radius:8px 8px 0 0;
+  text-decoration:none;
+  color:#045;
+  font-weight:600;
+  transition:all .25s ease;
+  border:1px solid #bbdefb;
+}
+.tab:hover{
+  background:#bbdefb;
+}
+.tab.active{
+  background:linear-gradient(135deg,#64b5f6,#ffffff);
+  color:#003;
+  border-bottom:1px solid #fff;
+}
+/* ===== END DASHBOARD TABS ===== */
+</style>
+</head>
+<body>
+
+<div class="tabs" id="dashboardTabs">
+  <a class="tab" data-tab="invoice" href="#">Hóa đơn</a>
+  <a class="tab" data-tab="lookup" href="https://linkfinn.github.io/tra-cuu/tra-cuu-hoa-don.html">
+     Tra cứu XML
+  </a>
+</div>
+  
+<div class="controls">
+  <select id="source"></select>
+  <select id="year">
+  </select>
+  <button onclick="load()">Lấy dữ liệu</button>
+  <input id="search" placeholder="Tìm kiếm..." onkeyup="filter()">
+</div>
+
+<h2 id="title">Đang load dữ liệu...</h2>
+
+<table>
+<thead id="thead"></thead>
+<tbody id="tb">
+<tr><td colspan="10" align="center">Đang load dữ liệu ...</td></tr>
+</tbody>
+<tfoot>
+  <tr>
+    <th colspan="3" style="text-align:right">TỔNG</th>
+    <th id="sumTotal" class="number">0</th>
+    <th colspan="6"></th>
+  </tr>
+</tfoot>
+</table>
+
+<script>
+/* =======================
+   CONFIG CSV
+======================= */
+const CSV_MAP = {
+  dvft: {
+    label: 'Đầu vào Finn',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1180743955&single=true&output=csv',
+    group: 'DV'
+  },
+  dvfm: {
+    label: 'Đầu vào Finn Xưởng',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1178854260&single=true&output=csv',
+    group: 'DV'
+  },
+  drft: {
+    label: 'Đầu ra Finn',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=147272766&single=true&output=csv',
+    group: 'DR'
+  },
+  drfm: {
+    label: 'Đầu ra Finn Xưởng',
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT1dB7CpNe1hLx1BfozuWh0swi1YAiw2EeUsv1hYKoBqZ7q_c6_2uqYf_49pVdK3xPLbkrAKwbE_EaW/pub?gid=1704976963&single=true&output=csv',
+    group: 'DR'
+  }
+};
+
+/* =======================
+   COLUMN MAP
+======================= */
+const COL_DV = { X:23,E:4,G:6,M:12,P:15,V:21,S:18,T:19,AA:26,AB:27,AD:29 };
+const COL_DR = { V:21,E:4,G:6,M:12,P:15,S:18,T:19,AD:29,X:23,Y:24 };
+
+let origin=[];
+
+/* =======================
+   GET COLUMN INDEX DYNAMICALLY FROM HEADER ROW
+======================= */
+function getColumnIndexes(headers, group) {
+  const map = {};
+
+  function idx(name) {
+    const i = headers.indexOf(name);
+    return i === -1 ? null : i;
+  }
+
+  if (group === 'DV') {
+    map.Noido     = idx('Nối');
+    map.Nlap      = idx('Ngày lập');
+    map.TenKH     = idx('Tên người bán/Tên người xuất hàng');
+    map.Tongtien  = idx('Tổng tiền thanh toán');
+    map.Trangthai = idx('Trạng thái hóa đơn');
+    map.Checkinfo = idx('Check TT');
+    map.WebTC     = idx('Link web tra cứu');
+    map.LinkTC    = idx('Link tra cứu');
+    map.Fkey      = idx('Fkey/ ID');
+    map.Linkview  = idx('Link xem hóa đơn');
+    map.Nhaplieu  = idx('Ngày lập (check)');
+  } else {
+    map.Noido     = idx('Nối');
+    map.Nlap      = idx('Ngày lập');
+    map.TenKH     = idx('Tên người mua/Tên người nhận hàng');
+    map.Tongtien  = idx('Tổng tiền thanh toán');
+    map.Trangthai = idx('Trạng thái hóa đơn');
+    map.Congtrinh = idx('Mã Công trình');
+    map.WebTC     = idx('Link web tra cứu');
+    map.LinkTC    = idx('Link tra cứu');
+    map.Fkey      = idx('Fkey/ ID');
+    map.Linkview  = idx('Link xem hóa đơn');
+    map.Nhaplieu  = idx('Ngày lập (check)');
+  }
+  return map;
+}
+  
+/* =======================
+   INIT SOURCE SELECT
+======================= */
+const source=document.getElementById('source');
+Object.entries(CSV_MAP).forEach(([k,v])=>{
+  source.innerHTML+=`<option value="${k}">${v.label}</option>`;
+});
+
+/* =======================
+   CSV PARSER
+======================= */
+function parseCSV(t){
+  const r=[];let c='',row=[],q=false;
+  for(let i=0;i<t.length;i++){
+    const ch=t[i],n=t[i+1];
+    if(ch=='"'&&n=='"'){c+='"';i++}
+    else if(ch=='"')q=!q
+    else if(ch==','&&!q){row.push(c);c=''}
+    else if((ch=='\n'||ch=='\r')&&!q){
+      if(c||row.length){row.push(c);r.push(row)}
+      row=[];c=''
+    }else c+=ch
+  }
+  if(c||row.length){row.push(c);r.push(row)}
+  return r
+}
+
+/* =======================
+   YEAR + NUMBER FIX
+======================= */
+function getYear(v){
+  const m=v?.match(/(19|20)\d{2}/);
+  return m?m[0]:null;
+}
+
+/* 🔧 SỬA DUY NHẤT CHO DR */
+function parseNumber(val){
+  if(!val) return 0;
+  let v=val.toString().trim();
+  if(v.includes('.')&&!v.includes(',')) v=v.replace(/\./g,'');
+  if(v.includes(',')&&v.includes('.')){
+    if(v.lastIndexOf(',')>v.lastIndexOf('.')){
+      v=v.replace(/\./g,'').replace(',','.');
+    }else{
+      v=v.replace(/,/g,'');
+    }
+  }
+  const n=Number(v);
+  return isNaN(n)?0:n;
+}
+
+/* =======================
+   HEADER
+======================= */
+const TABLE_HEADER={
+  DV:['MST-KH-Số hóa đơn','Ngày','Tên khách hàng','Tổng tiền','Trạng thái','Check','Web tra cứu','ID/Fkey','Xem','✔'],
+  DR:['MST-KH-Số hóa đơn','Ngày','Tên khách hàng','Tổng tiền','Trạng thái','Web','ID/Fkey','Công trình','Xem','✔']
+};
+
+function renderHeader(group){
+  thead.innerHTML='';
+  const tr=document.createElement('tr');
+  TABLE_HEADER[group].forEach(t=>{
+    const th=document.createElement('th');
+    if(t === '✔'){
+    th.innerHTML = `
+    <input type="checkbox" id="checkAll" checked disabled
+      onchange="SumTongtien(true)">
+    `;
+    } else {
+    th.textContent = t;
+    }
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+}
+
+/* =======================
+   LOAD DATA
+======================= */
+const year=document.getElementById('year');
+
+/* === INIT YEAR SELECT (AUTO)=== */
+(function initYearSelect(){
+  const currentYear = new Date().getFullYear();
+  const startYear = 2023; // có thể đổi nếu muốn
+
+  year.innerHTML = `<option value="all">Chọn năm</option>`;
+
+  for(let y = startYear; y <= currentYear; y++){
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y;
+    if(y === currentYear) opt.selected = true;
+    year.appendChild(opt);
+  }
+})();
+
+const title=document.getElementById('title');
+const tb=document.getElementById('tb');
+const search=document.getElementById('search');
+const thead=document.getElementById('thead');
+
+function load(){
+  const key=source.value;
+  const y=year.value;
+  const cfg=CSV_MAP[key];
+
+  title.textContent = y === 'all' ? `${cfg.label} tất cả các năm`  : `${cfg.label} năm ${y}`;
+  renderHeader(cfg.group);
+  // ===== RESET TRẠNG THÁI CŨ =====
+  document.querySelector('tfoot').style.display = 'none';
+  document.getElementById('sumTotal').textContent = '0';
+  const master = document.getElementById('checkAll');
+  if(master){
+    master.checked = true;
+    master.indeterminate = false;
+    master.disabled = true;
+  }
+  tb.innerHTML='<tr><td colspan="10">Đang load dữ liệu ...</td></tr>';
+
+  fetch(cfg.url).then(r=>r.text()).then(t=>{
+    const rows=parseCSV(t);
+    origin=[];
+    const headers = rows[3]; // Hàng thứ 4 (index 3)
+    const col = getColumnIndexes(headers, cfg.group); // Lấy các chỉ mục cột theo tên cột từ header row
+    for(let i=4;i<rows.length;i++){
+      const r=rows[i];
+      const d = r[col.Nlap]; // Lấy giá trị cột "Ngày"
+      if(!d) continue;
+      if(y !== 'all' && getYear(d) !== y) continue;
+
+      if(cfg.group==='DV'){
+        origin.push({
+          Dgroup: 'DV',
+          Noido:r[col.Noido],
+          Nlap:d,
+          TenKH:r[col.TenKH],
+          Tongtien:parseNumber(r[col.Tongtien]),
+          Trangthai:r[col.Trangthai],
+          Checkinfo:r[col.Checkinfo],
+          WebTC:r[col.WebTC],
+          LinkTC:r[col.LinkTC],
+          Fkey:r[col.Fkey],
+          Linkview:r[col.Linkview],
+          Nhaplieu:r[col.Nhaplieu]
+        });
+      }else{
+        origin.push({
+          Dgroup: 'DR',
+          Noido:r[col.Noido],
+          Nlap:d,
+          TenKH:r[col.TenKH],
+          Tongtien:parseNumber(r[col.Tongtien]),   // 🔧 FIX DR
+          Trangthai:r[col.Trangthai],
+          Congtrinh:r[col.Congtrinh],
+          WebTC:r[col.WebTC],
+          LinkTC:r[col.LinkTC],
+          Fkey:r[col.Fkey],
+          Linkview:r[col.Linkview],
+          Nhaplieu:r[col.Nhaplieu]
+        });
+      }
+    }
+    render(origin);
+  });
+}
+
+/* =======================
+   LINK NULL (LINK RỖNG => BỎ QUA)
+======================= */
+function SafeLink(url, text='xem file'){
+  if(!url) return '';
+  const u = url.toString().trim();
+  if(!u || u.toLowerCase()==='null') return '';
+  return `<a href="${u}" target="_blank">${text}</a>`;
+}
+
+/* =======================
+   RENDER
+======================= */
+function render(data){
+  tb.innerHTML='';
+  if(!data.length){
+    tb.innerHTML='<tr><td colspan="10">Không có dữ liệu</td></tr>';
+    document.querySelector('tfoot').style.display = 'none'; // Ẩn dòng tổng nếu không có dữ liệu
+    return;
+  }
+  data.forEach(r=>{
+    const tr=document.createElement('tr');
+
+    const adRaw = (r.Dgroup==='DV' ? r.Nhaplieu : r.Congtrinh) ?? '';
+    const adNorm = adRaw.replace(/\s+/g,'').toLowerCase();
+
+    if(r.Dgroup === 'DV'){ // DV: chỉ bôi khi ngày lập (check) = NoData
+    if(adNorm === 'nodata'){
+    tr.className = 'nodata';
+    }
+    } else if(r.Dgroup === 'DR'){  // DR: bôi khi Công trình rỗng
+    if(adNorm === ''){
+    tr.className = 'nodata';
+    }
+  }
+
+
+    const FkeyText=(r.Fkey&&r.Fkey.length>20)?r.Fkey.slice(0,18)+'***':r.Fkey;
+  if(r.Dgroup === 'DV'){
+    tr.innerHTML=`
+  <td>${r.Noido||''}</td>
+  <td>${r.Nlap||''}</td>
+  <td>${r.TenKH||''}</td>
+  <td class="number" data-money="${r.Tongtien}">${r.Tongtien.toLocaleString('en-US')}</td>
+  <td>${r.Trangthai||''}</td>
+  <td>${r.Checkinfo||''}</td>
+  <td>${r.LinkTC?`<a href="${r.LinkTC}" target="_blank">${r.WebTC}</a>`:(r.WebTC||'')}</td>
+  <td>${FkeyText||''}</td>
+  <td>${SafeLink(r.Linkview, 'xem')}</td>
+  <td><input type="checkbox" class="row-check" checked onchange="SumTongtien()"></td>
+  `;
+    }else{
+    tr.innerHTML=`
+  <td>${r.Noido||''}</td>
+  <td>${r.Nlap||''}</td>
+  <td>${r.TenKH||''}</td>
+  <td class="number" data-money="${r.Tongtien}">${r.Tongtien.toLocaleString('en-US')}</td>
+  <td>${r.Trangthai||''}</td>
+  <td>${r.LinkTC?`<a href="${r.LinkTC}" target="_blank">${r.WebTC}</a>`:(r.WebTC||'')}</td>
+  <td>${FkeyText||''}</td>
+  <td>${r.Congtrinh||''}</td>
+  <td>${SafeLink(r.Linkview, 'xem')}</td>
+  <td><input type="checkbox" class="row-check" checked onchange="SumTongtien()"></td>
+  `;
+    }
+    tb.appendChild(tr);
+  });
+  document.querySelector('tfoot').style.display = 'table-footer-group'; // hiển thị dòng tổng sau khi render xong
+  const master = document.getElementById('checkAll');
+  if(master) master.disabled = false;
+  SumTongtien();
+}
+
+/* =======================
+   SUM TỔNG TIỀN
+======================= */
+function SumTongtien(fromHeader = false){
+  const master = document.getElementById('checkAll');
+  const rows = document.querySelectorAll('#tb tr .row-check');
+
+  // ===== 1. Nếu click từ HEADER =====
+  if(fromHeader && master){
+    rows.forEach(cb=>{
+      cb.checked = master.checked;
+    });
+  }
+
+  // ===== 2. Tính SUM + đếm =====
+  let sum = 0;
+  let checkedCount = 0;
+  let totalCount = 0;
+
+  document.querySelectorAll('#tb tr').forEach(tr=>{
+    const cb = tr.querySelector('.row-check');
+    if(!cb) return;
+
+    totalCount++;
+
+    if(cb.checked){
+      checkedCount++;
+      const moneyCell = tr.querySelector('[data-money]');
+      sum += Number(moneyCell?.dataset.money || 0);
+    }
+  });
+
+  document.getElementById('sumTotal').textContent =
+    sum.toLocaleString('en-US');
+
+  // ===== 3. Cập nhật HEADER (Excel-like) =====
+  if(master){
+    if(checkedCount === 0){
+      master.checked = false;
+      master.indeterminate = false;
+    }else if(checkedCount === totalCount){
+      master.checked = true;
+      master.indeterminate = false;
+    }else{
+      master.checked = false;
+      master.indeterminate = true; // 👈 mờ
+    }
+  }
+}
+
+/* =======================
+   FILTER
+======================= */
+function filter(){
+  const k=search.value.toLowerCase();
+  render(origin.filter(r=>Object.values(r).some(v=>v&&v.toString().toLowerCase().includes(k))));
+}
+
+/* =======================
+   READ URL PARAM
+======================= */
+(function(){
+  const params = new URLSearchParams(window.location.search);
+
+  const nameParam = params.get('name');
+  const yearParam = params.get('year');
+
+  if(nameParam && CSV_MAP[nameParam]){
+    source.value = nameParam;
+  }
+
+  if(yearParam){
+    const opt = [...year.options].find(o => o.value === yearParam);
+    if(opt) year.value = yearParam;
+  }
+})();
+
+/* =======================
+   DASHBOARD TAB ACTIVE
+======================= */
+(function(){
+  const tabs = document.querySelectorAll('.tab');
+  const params = new URLSearchParams(window.location.search);
+
+  // Mặc định tab hóa đơn
+  let activeTab = 'invoice';
+
+  // Nếu sau này bạn muốn phân tab theo param
+  if(params.get('page')){
+    activeTab = params.get('page');
+  }
+
+  tabs.forEach(t=>{
+    if(t.dataset.tab === activeTab){
+      t.classList.add('active');
+    }
+  });
+})();
+
+window.onload=load;
+</script>
+</body>
+</html>
